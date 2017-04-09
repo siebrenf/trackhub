@@ -1,109 +1,99 @@
 import tempfile
 import os
-from fabric.api import local, settings, run, abort, cd, env, hide, puts
-from fabric.contrib.console import confirm
-from fabric.colors import green, yellow
-import track
+import shlex
+import subprocess as sp
+import logging
+from . import track
+
+logger = logging.getLogger(__name__)
+
+RSYNC_OPTIONS = '--progress -rvL'
 
 
-def upload_file(host, user, local_fn, remote_fn, port=22,
-                rsync_options='-azvrL --progress', run_local=False,
-                symlink=False, symlink_dir='staging'):
-    results = []
-    puts('\n\n' + green(local_fn) + ' -> ' +  yellow(remote_fn))
-    if symlink:
-        symlink_dest = os.path.join(symlink_dir, remote_fn)
-        os.system('mkdir -p %s' % (os.path.dirname(symlink_dest)))
-        remote_dir = os.path.dirname(remote_fn)
-        os.system('ln -sf %s %s' % (os.path.abspath(local_fn), symlink_dest))
-        local_fn = symlink_dest
-
-    if run_local:
-        if not os.path.exists(os.path.dirname(remote_fn)):
-            remote_dir = os.path.dirname(remote_fn)
-            if remote_dir:
-                results.append(local('mkdir -p %s' % remote_dir))
-
-        results.append(local('rsync %(rsync_options)s %(local_fn)s %(remote_fn)s' % locals()))
-        return results
-    env.host_string = host
-    env.user = user
-    env.port = port
-
-    remote_dir = os.path.dirname(remote_fn)
-
-    with settings(warn_only=True):
-        result = run('ls %s' % remote_dir)
-
-    if result.failed:
-        run('mkdir -p %s' % remote_dir)
-
-    rsync_template = \
-        'rsync %(rsync_options)s %(local_fn)s %(user)s@%(host)s:%(remote_fn)s'
-    with settings(warn_only=True):
-        results.append(local(rsync_template % locals()))
-    return results
+def run(cmds, env=None, **kwargs):
+    try:
+        p = sp.run(cmds, stdout=sp.PIPE, stderr=sp.STDOUT, check=True, env=env, **kwargs)
+        p.stdout = p.stdout.decode(errors='replace')
+    except sp.CalledProcessError as e:
+        e.stdout = e.stdout.decode(errors='replace')
+        logger.error('COMMAND FAILED: %s', ' '.join(e.cmd))
+        logger.error('STDOUT+STDERR:\n%s', e.stdout)
+        raise e
+    return p
 
 
-def upload_hub(host, user, hub, port=22, rsync_options='-azvrL --progress',
-               run_local=False, symlink=False, symlink_dir='staging'):
-    kwargs = dict(host=host, user=user, port=port, rsync_options=rsync_options,
-                  run_local=run_local, symlink=symlink, symlink_dir=symlink_dir)
-    print kwargs
-    results = []
+def symlink(target, linkname):
+    target_dir = os.path.dirname(target)
+    link_dir = os.path.dirname(linkname)
+    link_base = os.path.basename(linkname)
+    rel_target = os.path.relpath(target, link_dir)
+    abs_target = os.path.abspath(target)
+    if not os.path.exists(link_dir):
+        os.makedirs(link_dir)
+    run(['ln', '-s', '-f', abs_target, link_base], cwd=link_dir)
+    return linkname
 
-    # First the hub file:
-    results.extend(
-        upload_file(
-            local_fn=hub.local_fn,
-            remote_fn=hub.remote_fn,
-            **kwargs)
-    )
 
-    # Then the genomes file:
-    print hub.genomes_file.local_fn
-    results.extend(
-        upload_file(
-            local_fn=hub.genomes_file.local_fn,
-            remote_fn=hub.genomes_file.remote_fn,
-            **kwargs)
-    )
+def upload_file(host, user, local_dir, remote_dir,
+                rsync_options=RSYNC_OPTIONS):
+    if user is None:
+        user = ""
+    else:
+        user = user + "@"
+    if host is None or host == 'localhost':
+        host = ""
+    else:
+        host = host + ":"
+    remote_string = '{user}{host}{remote_dir}'.format(**locals())
+    cmds = ['rsync']
+    cmds += shlex.split(rsync_options)
+    cmds += [local_dir, remote_string]
+    run(cmds)
+    return [remote_string]
 
-    # then the trackDB file:
-    for g in hub.genomes_file.genomes:
-        results.extend(
-            upload_file(
-                local_fn=g.trackdb.local_fn,
-                remote_fn=g.trackdb.remote_fn,
-                **kwargs
-            )
-        )
-    # and finally any HTML files:
+
+def local_link(local_fn, remote_fn, staging):
+    """
+    local: data/bigwig/sample1.bw
+    remote: /hubs/hg19/a.bw
+
+    cd __staging__/hubs/hg19
+    ln -sf ../data/bigwig/sample1.bw a.bw
+    """
+    linkname = os.path.join(staging, remote_fn.lstrip(os.path.sep))
+    symlink(os.path.abspath(local_fn), os.path.abspath(linkname))
+
+
+def stage(x, staging, ext=''):
+    local_link(x.local_fn + ext, x.remote_fn + ext, staging)
+
+
+def upload_hub(host, user, hub, port=22, rsync_options=RSYNC_OPTIONS, staging=None):
+
+    if staging is None:
+        staging = tempfile.mkdtemp()
+
+    stage(hub, staging)
+    stage(hub.genomes_file, staging)
+    for genome in hub.genomes_file.genomes:
+        stage(genome.genome_file_obj, staging)
     for t, level in hub.leaves(track.CompositeTrack, intermediate=True):
-        print repr(t)
         if t._html:
-            results.extend(
-                upload_file(
-                    local_fn=t._html.local_fn,
-                    remote_fn=t._html.remote_fn,
-                    **kwargs)
-            )
-    return results
+            stage(t._html, staging)
+
+    for t, level in hub.leaves(track.Track):
+        stage_track(t, staging)
+
+    # do the final upload
+    if not staging.endswith(os.path.sep):
+        staging = staging + '/'
+
+    upload_file(host, user, local_dir=staging, remote_dir='/', rsync_options=rsync_options)
 
 
-def upload_track(host, user, track, port=22, rsync_options='-azvrL --progress',
-                 run_local=False):
-    kwargs = dict(host=host, user=user, local_fn=track.local_fn,
-                  remote_fn=track.remote_fn, rsync_options=rsync_options,
-                  run_local=run_local)
-    results = upload_file(**kwargs)
+def stage_track(track, staging):
+    stage(track, staging)
     if track.tracktype == 'bam':
-        kwargs['local_fn'] += '.bai'
-        kwargs['remote_fn'] += '.bai'
-        results.extend(upload_file(**kwargs))
-
+        stage(track, staging, ext='.bai')
     if track.tracktype == 'vcfTabix':
-        kwargs['local_fn'] += '.tbi'
-        kwargs['remote_fn'] += '.tbi'
-        results.extend(upload_file(**kwargs))
-    return results
+        stage(track, staging, ext='.tbi')

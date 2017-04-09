@@ -35,16 +35,14 @@ class TestUpload(object):
 
     def test_upload(self):
         self.hub.remote_fn = os.path.join(
-            'uploaded_version',
+            '/home/ryan/proj', 'uploaded_version',
             self.hub.remote_fn)
         self.hub.render()
         upload.upload_hub(
             'localhost',
             None,
             self.hub,
-            symlink=True,
-            symlink_dir='staging',
-            run_local=True,)
+            )
         for t, level in self.hub.leaves(Track):
             upload.upload_track(
-                track=t, host='localhost', user=None, run_local=True)
+                track=t, host='localhost', user=None)
