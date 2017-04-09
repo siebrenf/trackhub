@@ -1,15 +1,13 @@
 import os
 import sys
 import json
-import base
-from hub import Hub
+from collections import OrderedDict
+from . import base
+from .hub import Hub
 
 _here = __file__
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
+
 
 def auto_track_url(track):
     """
@@ -32,16 +30,14 @@ def auto_track_url(track):
         raise ValueError("track.local_fn is not set")
 
 
-
-
 def show_rendered_files(results_dict):
     """
     Parses a nested dictionary returned from :meth:`Hub.render` and just prints
     the resulting files.
     """
-    for k, v in results_dict.items():
-        if isinstance(v, basestring):
-            print "rendered file: %s (created by: %s)" % (v, k)
+    for k, v in list(results_dict.items()):
+        if isinstance(v, str):
+            print(("rendered file: %s (created by: %s)" % (v, k)))
         else:
             show_rendered_files(v)
     return
@@ -63,7 +59,7 @@ def print_rendered_results(results_dict):
     # the returned string contains lines with trailing spaces, which causes
     # doctests to fail.  So fix that here.
     for s in formatted.splitlines():
-        print s.rstrip()
+        print((s.rstrip()))
 
 
 def data_dir():

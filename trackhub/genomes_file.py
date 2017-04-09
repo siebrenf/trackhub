@@ -1,11 +1,8 @@
 import os
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
-from validate import ValidationError
-from hub import Hub
-from base import HubComponent
+from collections import OrderedDict
+from .validate import ValidationError
+from .hub import Hub
+from .base import HubComponent
 
 
 class GenomesFile(HubComponent):

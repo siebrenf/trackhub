@@ -22,7 +22,7 @@ def validator(*example):
             raise ValueError(
                 'Error validating example (func=%s, example=%r)! '
                 '\nOriginal error:\n\t%s: %s'
-                % (func.func_name, example, e.__class__.__name__, e.message))
+                % (func.__name__, example, e.__class__.__name__, e.message))
 
         class Validator(object):
             """
@@ -38,7 +38,7 @@ def validator(*example):
 
             def __str__(self):
                 return "<Validator [%s] at %s> sample: %s" \
-                    % (func.func_name, id(func), example)
+                    % (func.__name__, id(func), example)
 
         return Validator()
     return wrapper
@@ -97,14 +97,14 @@ def key_val(v):
 @validator("a,b,c")
 def CSV(v):
     #TODO: is a one-item list "chr1," or "chr1"?
-    if isinstance(v, basestring):
+    if isinstance(v, str):
         return True
 
 
 @validator("a:b:c")
 def ColSV3(v):
     nvalues = 3
-    if not isinstance(v, basestring):
+    if not isinstance(v, str):
         raise ValueError('not a string')
     vs = v.split(':')
     assert len(vs) == nvalues
@@ -114,7 +114,7 @@ def ColSV3(v):
 @validator("a:b")
 def ColSV2(v):
     nvalues = 2
-    if not isinstance(v, basestring):
+    if not isinstance(v, str):
         raise ValueError('not a string')
     vs = v.split(':')
     assert len(vs) == nvalues
@@ -127,13 +127,13 @@ def RGB(v):
         raise ValueError('Space in RGB tuple')
     if "." in v:
         raise ValueError('"." in RGB tuple')
-    assert isinstance(v, basestring), "RGB tuple is not a string"
+    assert isinstance(v, str), "RGB tuple is not a string"
     if ',' not in v:
         raise ValueError("no commas in RGB tuple")
     rgb = v.split(',')
     assert len(rgb) == 3, "RGB tuple does not have 3 values"
     try:
-        rgb = map(int, rgb)
+        rgb = list(map(int, rgb))
     except ValueError:
         raise ValueError('RGB tuple does not contain ints')
     for i in rgb:

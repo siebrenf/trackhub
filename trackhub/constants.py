@@ -1,10 +1,6 @@
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
-from validate import Parameter
-import validate
-
+from collections import OrderedDict
+from .validate import Parameter
+from . import validate
 
 # http://genome-source.cse.ucsc.edu/gitweb/
 #       ?p=kent.git;a=blob;f=src/hg/makeDb/trackDb/README;hb=HEAD

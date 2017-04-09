@@ -1,10 +1,7 @@
 import os
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
-from validate import ValidationError
-from base import HubComponent
+from collections import OrderedDict
+from .validate import ValidationError
+from .base import HubComponent
 
 
 class Genome(HubComponent):

@@ -1,18 +1,15 @@
 import sys
 import os
 import re
-from validate import ValidationError
-from base import HubComponent
-import hub
-import trackdb
-import genomes_file
-import genome
-import constants
+from collections import OrderedDict
+from .validate import ValidationError
+from .base import HubComponent
+from . import hub
+from . import trackdb
+from . import genomes_file
+from . import genome
+from . import constants
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
 
 
 TRACKTYPES = ['bigWig', 'bam', 'bigBed', 'vcfTabix', None]

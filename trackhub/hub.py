@@ -1,10 +1,7 @@
 import os
-try:
-    from collections import OrderedDict
-except ImportError:
-    from ordereddict import OrderedDict
-from validate import ValidationError
-from base import HubComponent
+from collections import OrderedDict
+from .validate import ValidationError
+from .base import HubComponent
 
 
 class Hub(HubComponent):
@@ -98,7 +95,7 @@ class Hub(HubComponent):
 
     def __str__(self):
         s = []
-        for field, attr in self._field_order.items():
+        for field, attr in list(self._field_order.items()):
             if field == 'genomesFile':
                 if self.genomes_file:
                     value = os.path.relpath(
