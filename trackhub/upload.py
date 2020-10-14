@@ -171,7 +171,10 @@ def stage(x, staging):
             if (
                 x.source is None
                 and x.filename is None
-                and getattr(x, 'url', None) is not None
+                and (
+                    (getattr(x, 'url', None) is not None) or
+                    (getattr(x, 'bigDataUrl', None) is not None)
+                )
             ):
                 return
 
